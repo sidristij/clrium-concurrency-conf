@@ -195,7 +195,7 @@ private void button1_Click(object sender, EventArgs e)
 	FooAsync(
 		/*другие аргументы функции*/,		
 		_source.Token, 
-		false).GetAwaiter().GetResult();
+		false).GetResult();
 			
 		button1.Text = "new text";
 }
