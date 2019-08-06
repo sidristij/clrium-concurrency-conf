@@ -52,13 +52,22 @@ private void button1_Click(object sender, EventArgs e)
 
 В статье [1](https://msdn.microsoft.com/en-us/magazine/gg598924.aspx) можно найти информацию о различных контекстах синхронизации.
 
-Понять причину возникновения дедлока просто, если вспомнить, как выглядит код конечного автомата, в который преобразуется вызов async метода. Достаточно подробный код генерируемого конечного автомата, можно найти, например, в статье [2](https://www.codeproject.com/Articles/535635/Async-Await-and-the-Generated-StateMachine). Вся "магия" заключается в строчке :
+Понять причину возникновения дедлока просто, если вспомнить, как выглядит код конечного автомата, в который преобразуется вызов async метода. Достаточно подробный код генерируемого конечного автомата, можно найти, например, в статье [2](https://www.codeproject.com/Articles/535635/Async-Await-and-the-Generated-StateMachine). Вся "магия" заключается в следующих строках :
 ```C#
-//
-_builder.AwaitUnsafeOnCompleted<TaskAwaiter, ThisStateMachine>(ref taskAwaiter, ref this);
+//...
+// переменная taskAwaiter определена выше по коду.
+
+taskAwaiter = Task.Delay(5000).GetAwaiter();
+if(tasAwaiter.IsCompleted != true))
+{
+	_awaiter = taskAwaiter;
+	_nextState = ...;
+	
+	_builder.AwaitUnsafeOnCompleted<TaskAwaiter, ThisStateMachine>(ref taskAwaiter, ref this);
+}
 ```
-Это код выполняется, если внутренний асинхронный вызов еще не был завершен а, следовательно, текущий поток можно освободить. 
-Если погрузиться в дебри исходного кода MS, который скрывается под этой строчкой, вы придете к классу [SynchronizationContextAwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/R/d8b8d04cc476b392.html), и его базовому классу [AwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/system/threading/Tasks/TaskContinuation.cs.html#3f97ac52ec881e24), где и находится ответ на все вопросы.
+Код в `if` выполняется, если асинхронный вызов еще не был завершен а, следовательно, текущий поток можно освободить. 
+Если погрузиться в дебри исходного кода MS, который скрывается за вызовом `AwaitUnsafeOnCompleted`, то, в конечном итоге, мы придем к классу [SynchronizationContextAwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/R/d8b8d04cc476b392.html), и его базовому классу [AwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/system/threading/Tasks/TaskContinuation.cs.html#3f97ac52ec881e24), где и находится ответы на поставленные вопросы.
 
 Для простоты я позволю себе написать сильно упрощенный  "аналог" кода, даже без конечного автомата, в терминах TPL. Вся суть сводиться к следующему: 
 Рассмотрим такой код:
@@ -105,14 +114,21 @@ Task FooAsync()
 		}, 
 		TaskScheduler.Current);	      			
 }
+
+// 
+//void RestPartOfMethodCode(AutoResetEvent methodCompleted)
+//{
+	//Тут оставшаяся часть кода метода FooAsync.	
+//	methodCompleted.Set();
+//}
 ```
 Этот код *очень условно* повторяет реальный, но дает более наглядное представление того, что происходит.
 А происходит вот что: При наличии контектса синхронизации, весь код асинхронного метода, который идет после завершения внутреннего асинхронного вызова, выполняется с использованием делегата через контекст синхронизации (`current.Post(...)`). 
 Если речь идет о WinForms приложении, то контекст синхронизации в нем связан с UI-потоком. Если UI-поток заблокирован, в примере  (7) это происходит через вызов `Wait()`, то оставшаяся часть кода асинхронного метода выполниться не может, а значит, асинхронный метод не может завершиться, и не может освободить UI-поток,  что и есть дедлок.
 
-Когда мы вызываем `ConfigureAwait(false)`, то мы сообщаем среде, что для выполнения оставшейся части кода не нужно использовать контекст синхронизации. В этом случае код будет выполняться в том потоке, который был получен по завершению внутреннего асинхронного вызова, это соответствует, в нашем коде, ветке `if(current == null)`. 
+Когда вызывается, `ConfigureAwait(false)` (его надо вызывать для той задачи, у которой берем `Awaiter`, в примере выше, это `Task.Delay`), то объект ожидания конфигурируется так, чтобы не учитывать контекст синхронизации. В этом случае, код будет выполняться в том потоке, который был получен по завершению асинхронного вызова, это соответствует, в нашем коде, ветке `if(current == null)`. 
 
-Но, как я писал выше, вызов `ConfigureAwait(false)` в клиентском коде, в общем случае, не гарантирует решения проблемы с дедлоком. Чтобы этой проблемы не было, внутренний асинхронный вызов функции `FooAsync` должен быть также сконфигурирован через `ConfigureAwait(false)`, как в примере (9):
+Другими словами, вызов `ConfigureAwait(false)` в клиентском коде (в конечной точке) не имеет, в общем случае, смысла. Важно конфигурировать те вызовы, на основе которых происходит выполнение частей кода. Так, в приведенном више примере, чтобы не было дедлока, надо сконфигурировать `Task.Delay`, как в примере (9):
 ```C#
 [9]
 async Task FooAsync()
@@ -124,8 +140,7 @@ async Task FooAsync()
 
 private void button1_Click(object sender, EventArgs e)
 {
-	FooAsync().ConfigureAwait(false)
-	.GetAwaiter().GetResult();
+	FooAsync().GetAwaiter().GetResult();
 		
 	button1.Text = "new text";
 }
@@ -152,20 +167,9 @@ private void button1_Click(object sender, EventArgs e)
 Тут, с моей точки зрения, необходим более тонкий подход чем обычно рекомендуют.
 Во многих статьях говорится, что в библиотечном коде, все асинхронные вызовы надо конфигурировать через `ConfigureAwait(false)`.  Я не могу с этим согласиться. Возможно, с точки зрения авторов, коллеги из MS приняли неверное решение при выборе стратегии "по умолчанию"  в отношении работы с контекстом  синхронизации. Но они (MS), все же, оставили возможность разработчикам клиентского кода изменить это поведение. Стратегия, когда библиотечный код полностью покрывается  `ConfigureAwait(false)`, изменяет  поведение по умолчанию, но, кроме этого, такой подход лишает разработчиков возможности выбора.
 
-Я предлагаю другой подход. При реализации асинхронного API, в каждый метод API добавлять два  дополнительных входных параметра: `CancellationToken token` и ` bool continueOnCapturedContext`. И реализовывать код в виде пары методов, как показано в следующем примере:
+Я предлагаю другой подход. При реализации асинхронного API, в каждый метод API добавлять два  дополнительных входных параметра: `CancellationToken token` и ` bool continueOnCapturedContext`. И реализовывать код в следующем виде:
 ```C#
-public ConfiguredTaskAwaitable<string> FooAsync(
-	/*другие аргументы функции*/
-	CancellationToken? token = null, 
-	bool continueOnCapturedContext = true)
-{
-	return InnerFooAsync(
-		/*другие аргументы функции*/, 
-		token ?? CancellationToken.None, 
-		continueOnCapturedContext).ConfigureAwait(continueOnCapturedContext);
-}
-
-private async Task<string> InnerFooAsync(
+public async Task<string> InnerFooAsync(
 	/*другие аргументы функции*/,
 	CancellationToken token, 
 	bool continueOnCapturedContext)
@@ -177,16 +181,22 @@ private async Task<string> InnerFooAsync(
 }
 ```
 Первый параметр, `token` - служит для возможности скоординированной отмены (чем разработчики библиотек, так же, не редко пренебрегают).  Второй, `continueOnCapturedContext` - позволяет настроить взаимодействие с контекстом синхронизации. 
-Пара методов сделана для того, чтобы после вызова метода API, и передачи ему значения `continueOnCapturedContext`, клиентскому коду не требовалось дополнительного вызова  `ConfigureAwait` в отношении `Task` возвращенного методом API:
+При этом, есил асинхронный метод API будет сам частью другого метода, то клиентский код сможет определить, как он должен взаимодейтсвовать с контекстом синхронизации:
 ```C#
 // Пример вызова в асинхронном коде:
 async Task ClientFoo() 
 {
-	//...
+	//Внутренний код ClientFoo учитывает контекст синхронизации:
 	await FooAsync(
 		/*другие аргументы функции*/,
 		ancellationToken.None, 
 		false);
+		
+	//или же игнорировует контекст:
+	await FooAsync(
+		/*другие аргументы функции*/,
+		ancellationToken.None, 
+		false).ConfigureAwait(false);
 	//...
 }
 
