@@ -67,7 +67,7 @@ if(tasAwaiter.IsCompleted != true))
 }
 ```
 Код в `if` выполняется, если асинхронный вызов еще не был завершен а, следовательно, текущий поток можно освободить. 
-Если погрузиться в дебри исходного кода MS, который скрывается за вызовом `AwaitUnsafeOnCompleted`, то, в конечном итоге, мы придем к классу [SynchronizationContextAwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/R/d8b8d04cc476b392.html), и его базовому классу [AwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/system/threading/Tasks/TaskContinuation.cs.html#3f97ac52ec881e24), где и находится ответы на поставленные вопросы.
+Если погрузиться в дебри исходного кода MS, который скрывается за вызовом `AwaitUnsafeOnCompleted`, то, в конечном итоге, мы придем к классу [SynchronizationContextAwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/R/d8b8d04cc476b392.html), и его базовому классу [AwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/system/threading/Tasks/TaskContinuation.cs.html#3f97ac52ec881e24), где и находятся ответы на поставленные вопросы.
 
 Для простоты я позволю себе написать сильно упрощенный  "аналог" кода, даже без конечного автомата, в терминах TPL. Вся суть сводиться к следующему: 
 Рассмотрим такой код:
