@@ -75,9 +75,9 @@ if(tasAwaiter.IsCompleted != true))
 [7]
 async Task FooAsync()
 {			
-		await Task.Delay(5000);
-		//Остальную часть кода метода объединим в метод 
-		RestPartOfMethodCode();	
+	await Task.Delay(5000);
+	//Остальную часть кода метода объединим в метод 
+	RestPartOfMethodCode();	
 }
 
 private void button1_Click(object sender, EventArgs e)
@@ -133,9 +133,9 @@ Task FooAsync()
 [9]
 async Task FooAsync()
 {			
-		await Task.Delay(5000).ConfigureAwait(false);
-		//Остальную часть кода метода объединим в метод 
-		RestPartOfMethodCode();	
+	await Task.Delay(5000).ConfigureAwait(false);
+	//Остальную часть кода метода объединим в метод 
+	RestPartOfMethodCode();	
 }
 
 private void button1_Click(object sender, EventArgs e)
