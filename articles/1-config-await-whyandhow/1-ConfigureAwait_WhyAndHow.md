@@ -186,13 +186,21 @@ public async Task<string> InnerFooAsync(
 // Пример вызова в асинхронном коде:
 async Task ClientFoo() 
 {
-	//Внутренний код ClientFoo учитывает контекст синхронизации:
+	// "Внутренний" код ClientFoo учитывает контекст синхронизации, в то время как 
+	// внутренний код FooAsync игнорирует контекст синхронизации.
 	await FooAsync(
 		/*другие аргументы функции*/,
 		ancellationToken.None, 
 		false);
 		
-	//или же игнорировует контекст:
+	// "Внутренний" код ClientFoo игнорировует контекст, в то время как 
+	// внутренний код FooAsync учитывает контекст синхронизации (только зачем?).	
+	await FooAsync(
+		/*другие аргументы функции*/,
+		ancellationToken.None, 
+		true).ConfigureAwait(false);
+		
+	// Код всех уровней игнорировует контекст.	
 	await FooAsync(
 		/*другие аргументы функции*/,
 		ancellationToken.None, 
