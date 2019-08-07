@@ -64,8 +64,8 @@ private void button1_Click(object sender, EventArgs e)
 
 В статье ["Parallel Computing - It's All About the SynchronizationContext"](https://msdn.microsoft.com/en-us/magazine/gg598924.aspx) дается информация о различных контекстах синхронизации.  
 
-Для того, чтобы понять причину возникновения deadlock'a, нужно проанализировать код конечного автомата, и далее классы MS, в который преобразуется вызов async метода. В статье ["Async Await and the Generated StateMachine"](https://www.codeproject.com/Articles/535635/Async-Await-and-the-Generated-StateMachine) приводится пример такого конечного автомата.  
-Не буду приводить полный исходный код конечного автомата, генерируемого для примера (7), покажу лишь важные для дальнейшего разбора строки:
+Для того, чтобы понять причину возникновения deadlock'a, нужно проанализировать код конечного автомата, и, далее, классы MS, в который преобразуется вызов async метода. В статье ["Async Await and the Generated StateMachine"](https://www.codeproject.com/Articles/535635/Async-Await-and-the-Generated-StateMachine) приводится пример такого конечного автомата.  
+Не буду приводить полный исходный код, генерируемого для примера (7), автомата, покажу лишь важные, для дальнейшего разбора, строки:
 ```C#
 //Внутри метода MoveNext.
 //...
