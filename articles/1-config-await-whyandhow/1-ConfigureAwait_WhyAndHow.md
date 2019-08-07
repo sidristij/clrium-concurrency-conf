@@ -66,6 +66,7 @@ private void button1_Click(object sender, EventArgs e)
 Для того, чтобы понять причину возникновения deadlock'a, нужно проанализировать код конечного автомата, и далее код классов MS, в который преобразуется вызов async метода. В статье ["Async Await and the Generated StateMachine"](https://www.codeproject.com/Articles/535635/Async-Await-and-the-Generated-StateMachine) приводится пример кода конечного автомата.  
 Не буду приводить полный исходники конечного автомата для примера (7), покажу лишь важные для дальнейшего разбора строки:
 ```C#
+//Внутри метода MoveNext.
 //...
 // переменная taskAwaiter определена выше по коду.
 
