@@ -13,9 +13,9 @@
 
 //или 
 [4] FooAsync(/*...*/)
-        .ConfigureAwait(false)
-        .GetAwaiter()
-        .GetResult();
+    .ConfigureAwait(false)
+    .GetAwaiter()
+    .GetResult();
 
 //или			
 [5] await FooAsync(/*...*/).ConfigureAwait(false)
@@ -44,21 +44,22 @@
 //Некоторая метод библиотечного / стороннего класса.
 async Task FooAsync()
 {
-        // Delay взять для простоты. Может быть любой асинхронный вызов.
-        await Task.Delay(5000);
+    // Delay взять для простоты. Может быть любой асинхронный вызов.
+    await Task.Delay(5000);
         
-        //Остальную часть кода метода объединим в метод 
-        RestPartOfMethodCode();	    
+    //Остальную часть кода метода объединим в метод 
+    RestPartOfMethodCode();	    
 }
 
 //Код в "конечной" точке использования, в данном случае, это WinForms приложение.
 private void button1_Click(object sender, EventArgs e)
 {
-        FooAsync()
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult();
-        button1.Text = "new text";
+    FooAsync()
+        .ConfigureAwait(false)
+        .GetAwaiter()
+        .GetResult();
+        
+    button1.Text = "new text";
 }
 ```
 
@@ -74,14 +75,15 @@ private void button1_Click(object sender, EventArgs e)
 taskAwaiter = Task.Delay(5000).GetAwaiter();
 if(tasAwaiter.IsCompleted != true))
 {
-        _awaiter = taskAwaiter;
-        _nextState = ...;
+    _awaiter = taskAwaiter;
+    _nextState = ...;
         
-        _builder.AwaitUnsafeOnCompleted<TaskAwaiter, ThisStateMachine>(ref taskAwaiter, ref this);
+    _builder.AwaitUnsafeOnCompleted<TaskAwaiter, ThisStateMachine>(ref taskAwaiter, ref this);
+    return;
 }
 ```
 Ветка `if` выполняется, если асинхронный вызов (`Delay`) еще не был завершен и, следовательно, текущий поток можно освободить.  
-Обратите внимание на то, что в `AwaitUnsafeOnCompleted` передается taskAwaiter полученный от внутреннего (относительно `FooAsync`) асинхронного вызова (`Delay`).
+Обратите внимание на то, что в `AwaitUnsafeOnCompleted` передается taskAwaiter полученный от **внутреннего** (относительно `FooAsync`) асинхронного вызова (`Delay`).
 
 Если погрузиться в дебри исходников MS, которые скрываются за вызовом `AwaitUnsafeOnCompleted`, то, в конечном итоге, мы придем к классу [SynchronizationContextAwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/R/d8b8d04cc476b392.html), и его базовому классу [AwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/system/threading/Tasks/TaskContinuation.cs.html#3f97ac52ec881e24), где и находятся ответ на поставленный вопрос.
 
@@ -92,35 +94,35 @@ if(tasAwaiter.IsCompleted != true))
 [8]
 Task FooAsync()
 {		
-        // Переменная methodCompleted вводится только для того, чтобы подчеркнуть, 
-        // что метод завершается тогда, когда будет выполнен некоторый "маркирующий код".
-        // В конечном автомате функцию, аналогичную строчке methodCompleted.WaitOne() данного кода,
-        // выполняет метод SetResult класса AsyncTaskMethodBuilder, 
-        // объект которого храниться в поле конечного автомата.        
-        var methodCompleted = new AutoResetEvent(false); 	
+    // Переменная methodCompleted вводится только для того, чтобы подчеркнуть, 
+    // что метод завершается тогда, когда будет выполнен некоторый "маркирующий код".
+    // В конечном автомате функцию, аналогичную строчке methodCompleted.WaitOne() данного кода,
+    // выполняет метод SetResult класса AsyncTaskMethodBuilder, 
+    // объект которого храниться в поле конечного автомата.        
+    var methodCompleted = new AutoResetEvent(false); 	
         
-        SynchronizationContext current = SynchronizationContext.Current;	
-        return Task.Delay(5000).ContinueWith(
-                t=>
-                {			
-                        if(current == null)
-                        {
-                                RestPartOfMethodCode();
-                        }
-                        else
-                        {
-                                current.Post(state=>RestPartOfMethodCode(methodCompleted), null);
-                                methodCompleted.WaitOne();
-                        }
-                 }, 
-                 TaskScheduler.Current);
+    SynchronizationContext current = SynchronizationContext.Current;	
+    return Task.Delay(5000).ContinueWith(
+        t=>
+            {			
+                if(current == null)
+                {
+                    RestPartOfMethodCode();
+                }
+                else
+                {
+                    current.Post(state=>RestPartOfMethodCode(methodCompleted), null);
+                    methodCompleted.WaitOne();
+                }
+            }, 
+            TaskScheduler.Current);
 }
 
 // 
 //void RestPartOfMethodCode(AutoResetEvent methodCompleted)
 //{
-        // Тут оставшаяся часть кода метода FooAsync.	
-        // methodCompleted.Set();
+    // Тут оставшаяся часть кода метода FooAsync.	
+    // methodCompleted.Set();
 //}
 ```
 
@@ -134,16 +136,16 @@ Task FooAsync()
 [9]
 async Task FooAsync()
 {			
-        await Task.Delay(5000).ConfigureAwait(false);
-        //Остальную часть кода метода объединим в метод 
-        RestPartOfMethodCode();	
+    await Task.Delay(5000).ConfigureAwait(false);
+    //Остальную часть кода метода объединим в метод 
+    RestPartOfMethodCode();	
 }
 
 private void button1_Click(object sender, EventArgs e)
 {
-        FooAsync().GetAwaiter().GetResult();
+    FooAsync().GetAwaiter().GetResult();
 		
-        button1.Text = "new text";
+    button1.Text = "new text";
 }
 ```
 Выше мы рассмотрели риски возникающие с кодом первой группы - код с блокировкой (примеры 1-4). Теперь о второй группе (примеры 5 и 6) - код без блокировок. В этом случае возникает вопрос, когда вызов `ConfigureAwait(false)` оправдан? При разборе примера (7), мы уже выяснили, что конфигурировать надо тот объект ожидания, на основе которого будет построено продолжение выполнения. Т.е. конфигурация требуется (если вы приняли такое решение) только для **внутренних** асинхронных вызовов. 
@@ -173,14 +175,14 @@ private void button1_Click(object sender, EventArgs e)
 Мой вариант заключается в том, чтобы, при реализации асинхронного API, в каждый метод API добавлять два дополнительных входных параметра: `CancellationToken token` и ` bool continueOnCapturedContext`. И реализовывать код в следующем виде:
 ```C#
 public async Task<string> InnerFooAsync(
-        /*другие аргументы функции*/,
-        CancellationToken token, 
-        bool continueOnCapturedContext)
+    /*другие аргументы функции*/,
+    CancellationToken token, 
+    bool continueOnCapturedContext)
 {
-        // ...
-        await Task.Delay(30, token).ConfigureAwait(continueOnCapturedContext);
-        // ...
-        return result;
+    // ...
+    await Task.Delay(30, token).ConfigureAwait(continueOnCapturedContext);
+    // ...
+    return result;
 }
 ```
 Первый параметр, `token` - служит, как известно, для возможности скоординированной отмены (разработчики библиотек этой возможностью, иногда, пренебрегают).  Второй, `continueOnCapturedContext` - позволяет настроить взаимодействие с контекстом синхронизации внутренних асинхронных вызовов. 
@@ -189,31 +191,31 @@ public async Task<string> InnerFooAsync(
 // Пример вызова в асинхронном коде:
 async Task ClientFoo() 
 {
-        // "Внутренний" код ClientFoo учитывает контекст синхронизации, в то время как 
-        // внутренний код FooAsync игнорирует контекст синхронизации.
-        await FooAsync(
-                /*другие аргументы функции*/,
-                ancellationToken.None, 
-                false);
+    // "Внутренний" код ClientFoo учитывает контекст синхронизации, в то время как 
+    // внутренний код FooAsync игнорирует контекст синхронизации.
+    await FooAsync(
+        /*другие аргументы функции*/,
+        ancellationToken.None, 
+        false);
 		
 		
-        // Код всех уровней игнорирует контекст.	
-        await FooAsync(
-                /*другие аргументы функции*/,
-                ancellationToken.None, 
-                false).ConfigureAwait(false);
-        //...
+    // Код всех уровней игнорирует контекст.	
+    await FooAsync(
+        /*другие аргументы функции*/,
+        ancellationToken.None, 
+        false).ConfigureAwait(false);
+    //...
 }
 
 //В синхронном, с блокировкой.
 private void button1_Click(object sender, EventArgs e)
 {
-        FooAsync(
-                /*другие аргументы функции*/,		
-                _source.Token, 
-                false).GetAwaiter().GetResult();
+    FooAsync(
+        /*другие аргументы функции*/,		
+        _source.Token, 
+        false).GetAwaiter().GetResult();
 			
-        button1.Text = "new text";
+    button1.Text = "new text";
 }
 ``` 
 
