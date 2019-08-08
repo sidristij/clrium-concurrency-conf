@@ -182,7 +182,7 @@ private void button1_Click(object sender, EventArgs e)
 Мой вариант заключается в том, чтобы, при реализации асинхронного API, в каждый метод API добавлять два дополнительных входных параметра: `CancellationToken token` и `bool continueOnCapturedContext`. И реализовывать код в следующем виде:
 
 ```csharp
-public async Task<string> InnerFooAsync(
+public async Task<string> FooAsync(
     /*другие аргументы функции*/,
     CancellationToken token, 
     bool continueOnCapturedContext)
