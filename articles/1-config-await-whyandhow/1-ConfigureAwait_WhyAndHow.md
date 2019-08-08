@@ -91,7 +91,7 @@ if(tasAwaiter.IsCompleted != true))
 
 Если погрузиться в дебри исходников MS, которые скрываются за вызовом `AwaitUnsafeOnCompleted`, то, в конечном итоге, мы придем к классу [SynchronizationContextAwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/R/d8b8d04cc476b392.html), и его базовому классу [AwaitTaskContinuation](https://referencesource.microsoft.com/mscorlib/system/threading/Tasks/TaskContinuation.cs.html#3f97ac52ec881e24), где и находятся ответ на поставленный вопрос.
 
-Код этих, и связанных с ними, классов довольно запутан. Поэтому, для облегчения восприятия, я позволю себе написать сильно упрощенный  "аналог" того, во что превращается примера (7), но без конечного автомата, и в терминах TPL:  
+Код этих, и связанных с ними, классов довольно запутан, поэтому, для облегчения восприятия, я позволю себе написать сильно упрощенный  "аналог" того, во что превращается пример (7), но без конечного автомата, и в терминах TPL:  
 
 ```csharp
 [8]
