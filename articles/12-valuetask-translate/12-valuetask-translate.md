@@ -7,3 +7,17 @@
 
 ## Task
 
+## ValueTask\<TResult\> and synchronous completion
+
+## ValueTask\<TResult\> and asynchronous completion
+
+## Non-generic ValueTask
+
+## Implementing IValueTaskSource / IValueTaskSource\<T\>
+
+## Valid consumption patterns for ValueTasks
+
+## Should every new asynchronous API return ValueTask / ValueTask\<TResult\>?
+  
+## What’s Next for ValueTask and ValueTask\<TResult\>?
+
