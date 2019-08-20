@@ -89,7 +89,7 @@ public async Task<int> ReadNextByteAsync()
 Не смотря на это, существует много случаев, когда операция завершается синхронно, и при этом вынуждена аллоцировать и возвращать новый экземпляр `Task<TResult>`.
 
 
-## ValueTask\<TResult\> and synchronous completion
+## ValueTask\<TResult\> и синхронное завершение.
 
 Все это послужило мотивацией для введения в .NET Core 2.0 нового типа `ValueTask<TResult>`. Так же, этот тип сделали доступным в других  релизах .NET через nuget-пакет `System.Threading.Tasks.Extensions`.
 
@@ -111,7 +111,8 @@ public override ValueTask<int> ReadAsync(byte[] buffer, int offset, int count)
 }
 ```
 
-## ValueTask\<TResult\> and asynchronous completion
+## ValueTask\<TResult\> и асинхронное завершение.
+
 Иметь возможность писать асинхронные методы, при синхронном завершении, не требуют дополнительных аллокаций памяти для результата, это большой успех. Именно для этого `ValueTask<TResult>` был добавлен в .NET Core 2.0, и все новые методы, которые, как ожидается, будут использоваться на "горячих путях", теперь в качестве возвращаемого занчения указывают тип `ValueTask<TResult>` вместо  `Task<TResult>`. К примеру, новая перегрузка метода `ReadAsync` для `Stream`, в .NET Core 2.1 (принимающая в качестве параметра `Memory<byte>` вместо `byte[]`), возвращает экземпляр `ValueTask<int>`. Что позволило значительно снизить колличество аллокаций при работе с потоками (очень часто метод `ReadAsync` заверщается синхронно, как и в примере с `MemoryStream`). 
 
 Однако, при разработке сервисов с высокой пропускной способностью, нам тоже нужно всеми силами стараться избегать дополнительных аллокаций. Это значит что необходимо задуматься о снижении числа аллокаций связанных с асинхронным завершением операций.
@@ -157,10 +158,22 @@ public virtual ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken c
 
 
 ## Non-generic ValueTask
+Целью введения `ValueTask<T>` в .NET Core 2.0 была только оптимизация случаев синхронного завершения, чтобы избежать создания `Task<TResult>` для сохранения уже полученного результата `TResult`. Это так же значит, что не было необходимости в нетипизируемом  `ValueTask`: в случаях синхронного завершения методы используют синглтон через свойство `Task.CompletedTask`, это же, неявным образом, делает среда выполнения для `async Task`-методов.
 
-## Implementing IValueTaskSource / IValueTaskSource\<T\>
+Но, с появлением возможности избегать лишних аллокаций и при асинхронном завершении, необходимость в нетипизированном `ValueTask` сново стала актуальна. По этой причине, в .NET Core 2.1 мы ввели нетипизируемые `ValueTask` и `IValueTaskSource`.  Они являются аналогами соответствующих обобщенных типов, и использются тем же образом, но при отсутствии возвращаемого значения.
 
-## Valid consumption patterns for ValueTasks
+
+## Реалзиация IValueTaskSource / IValueTaskSource\<T\>
+
+У большенства разработчиков не возникнит необходимости реализовывать эти интерфейсы. Кроме того, их реализация это не простая задача. Если же вы решити, что вам необходима реализовать эти интерфейсы, то существует несколько примеров внутри .NET Core 2.1, которые могут послужить в качестве примеров:
+* [AwaitableSocketAsyncEventArgs](https://github.com/dotnet/corefx/blob/61f51e6b2b26271de205eb8a14236afef482971b/src/System.Net.Sockets/src/System/Net/Sockets/Socket.Tasks.cs#L808)  
+* [AsyncOperation\<TResult\>](https://github.com/dotnet/corefx/blob/89ab1e83a7e00d869e1580151e24f01226acaf3f/src/System.Threading.Channels/src/System/Threading/Channels/AsyncOperation.cs#L37)  
+* [DefaultPipeReader](https://github.com/dotnet/corefx/blob/a10890f4ffe0fadf090c922578ba0e606ebdd16c/src/System.IO.Pipelines/src/System/IO/Pipelines/Pipe.DefaultPipeReader.cs#L16)  
+
+Для упращения это задачи, для разработчков которые захотят сделать свои реализации, мы планируем представить в .NET Core 3.0 тип `ManualResetValueTaskSourceCore<TResult>`. Эта структура будет реализовывать всю необходимую логику. Экземпляр `ManualResetValueTaskSourceCore<TResult>`, можно будет инкапсулировать в другом объекте, реализующем `IValueTaskSource<TResult>` и / или `IValueTaskSource`, и делегировать ему большую часть функционала. Вы можете больше узнать об этом в связанном issue в репозитории dotnet/corefx по ссылке ttps://github.com/dotnet/corefx/issues/32664.
+  
+## Правильная модель использования ValueTasks
+
 
 ## Should every new asynchronous API return ValueTask / ValueTask\<TResult\>?
   
