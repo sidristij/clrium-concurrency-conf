@@ -129,7 +129,31 @@ public interface IValueTaskSource<out TResult>
 ```
 `GetStatus` предназначен для поддержки свойств типа `ValueTask<TResult>.IsCompleted`, позволяет узнать завершилась ли операция, и если да, то успешно или нет. `OnCompleted` используется в `ValueTask<TResult>` для запуска обратного вызова, по завершению асинхронной операции. `GetResult` используется для получения результата операции, или для распространения возникшего, в асинхронной операции, исключения.
 
-У большенства разработчиков вряд ли когда либо возникнет необходимость иметь дело с интерфейсом `IValueTaskSource<TResult>`, т.к. асинхронные методы возвращают `ValueTask<TResult>`.
+У большенства разработчиков вряд ли когда либо возникнет необходимость иметь дело с интерфейсом `IValueTaskSource<TResult>`, т.к. асинхронные методы возвращают оборачивающий его `ValueTask<TResult>`. Сам интерфейс в первую очередь предназначен для тех программистов, которые разрабатывают производительные API, стремящихеся избежать излишних аллокаций памяти. 
+
+Можно выделить несколько такого рода API в .NET Core 2.1. Наиболее известный это новые перегрузки методов `Socket.ReceiveAsync` и `Socket.SendAsync`. К примеру:
+```csharp	
+public ValueTask<int> ReceiveAsync(Memory<byte> buffer, SocketFlags socketFlags, CancellationToken cancellationToken = default);
+```
+В качестве возвращаемого значения, используются экземпляры типа `ValueTask<int>`.
+Если метод завершается синхронно, то он возвращает `ValueTask<int>` с соответствующим значением: 
+
+```csharp
+int result = …;
+return new ValueTask<int>(result);
+```
+
+Если же операция завершается асинхронно, то использется кэшируемый объект, реализующий интерфейс `IValueTaskSource<TResult>`:
+```csharp
+IValueTaskSource<int> vts = …;
+return new ValueTask<int>(vts);
+```
+Реализация `Socket` поддерживает один кэшируемый объект для получения, и один для отправления данных, до тех пор, пока каждый используется ,?????????????????????, это снижает количество дополнительного выделения памяти, даже в случае асинхронного выполнения.
+Например, в .NET Core 2.1, `NetworkStream` перегружает метод `ReadAsync` класса `Stream`:
+```csharp
+public virtual ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken);
+```
+Перегрузка этого метода в `NetworkStream` просто делегирует работу метроду `Socket.ReceiveAsync`, а значит повышение эффективности, в плане работы спамятью, метода сокета, повышиет эффективность и метода `NetworkStream`.
 
 
 ## Non-generic ValueTask
