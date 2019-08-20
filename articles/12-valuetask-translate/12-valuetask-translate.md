@@ -1,5 +1,5 @@
 # ValueTask Что? Где? Когда?.
-автор: *Stephen*  
+автор: *Stephen Toub*  
 перевод *Гончаров А.В*  
 [Орегинал статьи](https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/) 
 
