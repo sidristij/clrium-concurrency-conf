@@ -173,6 +173,74 @@ public virtual ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken c
 Для упращения это задачи, для разработчков которые захотят сделать свои реализации, мы планируем представить в .NET Core 3.0 тип `ManualResetValueTaskSourceCore<TResult>`. Эта структура будет реализовывать всю необходимую логику. Экземпляр `ManualResetValueTaskSourceCore<TResult>`, можно будет инкапсулировать в другом объекте, реализующем `IValueTaskSource<TResult>` и / или `IValueTaskSource`, и делегировать ему большую часть функционала. Вы можете больше узнать об этом в связанном issue в репозитории dotnet/corefx по ссылке ttps://github.com/dotnet/corefx/issues/32664.
   
 ## Правильная модель использования ValueTasks
+При поверхностном рассмотрении видно что `ValueTask` and `ValueTask<TResult>` более ограниченны чем `Task` и `Task<TResult>`. И это нормально, даже желательно, ведь основная цель - это ожитдать завершения асинхронного выполнения.
+
+Все же, т.к. `ValueTask` and `ValueTask<TResult>` могут агрегировать переиспользуемые обхекты, существуют значительные ограничения в их использовании, по сравнению с `Task` and `Task<TResult>`. В общем, следующие операции **НИКОГДА* не должны выполняться при использовании `ValueTask` / `ValueTask<TResult>`:
+
+* **Многократное ожидание `ValueTask` / `ValueTask<TResult>`**. Экземпляры `Task` и `Task<TResult>` никогда не возвращаются из "завершенного" состояния в "незавершенное", их мы можем использовать для ожидания результата столько раз сколько захотим, и всегда получать один и тот же результат. В отличие от них, `ValueTask` / `ValueTask<TResult>`, могут выступать обертками над переиспользуемыми объектами, что значит, что их состояние может изменяться, переходить от "завершенного" в "незавершонное" и обратно. 
+
+* **Ожидать `ValueTask` / `ValueTask<TResult>` конкурентно**. Обернутый объект ожидает работать только с одним обратным вызововм, от единственного потребителя, за раз, и попытка конкурентного ожидания может легко привести к состоянию гонки и "тонким" програмным ошибкам. Конкурентное ожидания, это один из вариантов, описанного вышел **многократного ожидания**. Отметим, что `Task` / `Task<TResult>` допускают любое число конкурентных ожиданий.
+
+* **Использование `.GetAwaiter().GetResult()` до завершения операции**. Реализации `IValueTaskSource` / `IValueTaskSource<TResult>` не должны поддерживать блокировку до завершения операци. Блокировка, по сути, приводит к состоянию гонки, и вряд ли это будет ожидаемое, со стороны потребителя, поведение. В то время как `Task` / `Task<TResult>` позволяют сделать это, тем самым заблокировать вызывающий поток до завершения операции.
+
+Если у вас есть экземпляры `ValueTask` / `ValueTask<TResult>`, и вам требуется сделать одну из вышеописанных операций, вы должны использовать метод `.AsTask()` чтобы получить `Task` / `Task<TResult>`, и только после этого выполнить нужную операцию на возвращенном (из `.AsTask()`) объекте. После этого, вы больше не должны использовать исходные `ValueTask` / `ValueTask<TResult>`.
+
+**Корокое правило гласит**: При работе с `ValueTask` / `ValueTask<TResult>` вы должны либо ожидать (`await`) их напрямую (или, если нужно с `.ConfigureAwait(false)`) или напрямую вызвать у объекта `.AsTask()`, и больше его никогда не использовать.
+
+```csharp
+// Given this ValueTask<int>-returning method…
+public ValueTask<int> SomeValueTaskReturningMethodAsync();
+…
+// GOOD
+int result = await SomeValueTaskReturningMethodAsync();
+ 
+// GOOD
+int result = await SomeValueTaskReturningMethodAsync().ConfigureAwait(false);
+ 
+// GOOD
+Task<int> t = SomeValueTaskReturningMethodAsync().AsTask();
+ 
+// WARNING
+ValueTask<int> vt = SomeValueTaskReturningMethodAsync();
+... // storing the instance into a local makes it much more likely it'll be misused,
+    // but it could still be ok
+ 
+// BAD: awaits multiple times
+ValueTask<int> vt = SomeValueTaskReturningMethodAsync();
+int result = await vt;
+int result2 = await vt;
+ 
+// BAD: awaits concurrently (and, by definition then, multiple times)
+ValueTask<int> vt = SomeValueTaskReturningMethodAsync();
+Task.Run(async () => await vt);
+Task.Run(async () => await vt);
+ 
+// BAD: uses GetAwaiter().GetResult() when it's not known to be done
+ValueTask<int> vt = SomeValueTaskReturningMethodAsync();
+int result = vt.GetAwaiter().GetResult();
+```
+
+Есть еще один дополнительный, "продвинутый", шаблон использования, который некоторые программисты могут решить использовать, надеюсь только после аккуратных измерений, с обоснованием значимой пользы от него.
+
+Конкретно объекты типов `ValueTask` / `ValueTask<TResult>` имеют некоторые свойства, которые позволяют узнать о текущем состоянии операции. К примеру свойство `IsCompleted` вернет `true`, если операция завершена (успешно или с исключением, не важно), в противном случае - `false`, а `IsCompletedSuccessfully` вернет `true` только в том случае, если операция завершилась успешно. Для самых "гоячих" путей, где разработчик хочет, например, избежать дополнительных накладных расходов, которые неменуемы только при асинхронном выполнении, можно использовать вышеуказанные свойства. Так мы можем проверить состояние выполнения и решить надо ли использовать `await` / `.AsTask()`. Например, реализация класса `SocketsHttpHandler` в .NET Core 2.1, этот код имеет дело с методом `.ReadAsync` соединения, который возвращает `ValueTask<int>`. Если операция завершается синхронно, нам более не надо волноваться о возможности её отмены. Но если операция будет выполняться асинхронно, то мы хотим иметь возможность обработать запрос отмены т.к. он разорвет соединение. Т.к. это высоконагруженныая часть кода, и профилирование показало небольшое различие, код, по существу, был структурирован следующим обрзаом:
+```csharp
+int bytesRead;
+{
+    ValueTask<int> readTask = _connection.ReadAsync(buffer);
+    if (readTask.IsCompletedSuccessfully)
+    {
+        bytesRead = readTask.Result;
+    }
+    else
+    {
+        using (_connection.RegisterCancellation())
+        {
+            bytesRead = await readTask;
+        }
+    }
+}
+```
+Здесь вышеописаный шаблон применим, т.к. `ValueTask<int>`, ни в случае вызова `.Result`, ни в случае `await`, ни где более не используется.
 
 
 ## Should every new asynchronous API return ValueTask / ValueTask\<TResult\>?
