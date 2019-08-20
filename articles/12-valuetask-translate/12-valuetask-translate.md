@@ -242,8 +242,11 @@ int bytesRead;
 ```
 Здесь вышеописаный шаблон применим, т.к. `ValueTask<int>`, ни в случае вызова `.Result`, ни в случае `await`, ни где более не используется.
 
+## Должны ли все новые асинхронные API возвращать ValueTask / ValueTask\<TResult\>?
 
-## Should every new asynchronous API return ValueTask / ValueTask\<TResult\>?
+Если коротко, то нет. Выбор по умолчанию остается за `Task` / `ValueTask\<TResult\>`.
+
+Как было показано ранее, объекты типов `Task` / `Task\<TResult\>` проще в плане корректного использования. По этой причине, пока  выйгрышь в производительности не превысит "выйгрыша" в удобстве/простоте использования, предпочтительно использовать `Task` / `Task\<TResult\>`. Есть так же незначительные расходы связанные с использованием `ValueTask\<TResult\>` вместо `Task\<TResult\>`
   
 ## What’s Next for ValueTask and ValueTask\<TResult\>?
 
