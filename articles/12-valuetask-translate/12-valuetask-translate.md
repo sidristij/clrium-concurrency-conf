@@ -91,7 +91,28 @@ public async Task<int> ReadNextByteAsync()
 
 ## ValueTask\<TResult\> and synchronous completion
 
+Все это послужило мотивацией для введения в .NET Core 2.0 нового типа `ValueTask<TResult>`. Так же, этот тип сделали доступным в других  релизах .NET через nuget-пакет `System.Threading.Tasks.Extensions`.
+
+`ValueTask<TResult>` был введен в .NET Core 2.0 как структура, способная оборачивать `TResult` или `Task<TResult>`. Это знчаит что объекты этого типа могут быть возвращены из async-метода, и если метод завершился успешно и синхронно, нам нет необходимости создавать что-либо в куче, мы просто инициализируем экземпляр `ValueTask<TResult>` со значением результата, и возвращаем его. Только если метод завершается асинхронно, нам необходимо создать `Task<TResult>`. В этом случаае `ValueTask<TResult>` создается как обертка над `Task<TResult>`. Это сделано для минимизации структуры `ValueTask<TResult>`, т.к. и в случае успеха, и в случае неудачи, асинхронный метод возвращает `Task<TResult>`, то чтобы не хранить дополнительные поля (например для хранения исключения) на оба случая в экземплярах `ValueTask<TResult>`, он просто агригирует возвращаемый `Task<TResult>`.
+
+Учитывае вышеизложенное, например в методе `MemoryStream.ReadAsync`, и подобных ему, больше нет необходимости заниматься кэшированием, вместо этого его можно реализовывать следующим образом:
+```csharp
+public override ValueTask<int> ReadAsync(byte[] buffer, int offset, int count)
+{
+    try
+    {
+        int bytesRead = Read(buffer, offset, count);
+        return new ValueTask<int>(bytesRead);
+    }
+    catch (Exception e)
+    {
+        return new ValueTask<int>(Task.FromException<int>(e));
+    }
+}
+```
+
 ## ValueTask\<TResult\> and asynchronous completion
+
 
 ## Non-generic ValueTask
 
