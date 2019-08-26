@@ -138,7 +138,11 @@ public override ValueTask<int> ReadAsync(byte[] buffer, int offset, int count)
 public interface IValueTaskSource<out TResult>
 {
     ValueTaskSourceStatus GetStatus(short token);
-    void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags);
+    void OnCompleted(
+        Action<object> continuation, 
+        object state, 
+        short token, 
+        ValueTaskSourceOnCompletedFlags flags);
     TResult GetResult(short token);
 }
 ```
@@ -148,7 +152,10 @@ public interface IValueTaskSource<out TResult>
 
 В .NET Core 2.1 можно выделить несколько примеров такого рода API. Наиболее известный из них, это новые перегрузки методов `Socket.ReceiveAsync` и `Socket.SendAsync`. К примеру:
 ```csharp	
-public ValueTask<int> ReceiveAsync(Memory<byte> buffer, SocketFlags socketFlags, CancellationToken cancellationToken = default);
+public ValueTask<int> ReceiveAsync(
+    Memory<byte> buffer, 
+    SocketFlags socketFlags,
+    CancellationToken cancellationToken = default);
 ```
 В качестве возвращаемого значения, используются объекты типа `ValueTask<int>`.
 Если метод завершается синхронно, то он возвращает `ValueTask<int>` с соответствующим значением: 
@@ -166,7 +173,9 @@ return new ValueTask<int>(vts);
 Реализация `Socket` поддерживает один кэшируемый объект для получения, и один для отправления данных, до тех пор, пока каждый из них используется без конкуренции (нет, например, конкурентных отправок данных). Такая стратегия снижает количество дополнительно выделеняемой памяти, даже в случае асинхронного выполнения.
 Описаная оптимизация `Socket` в .NET Core 2.1, позитивно повлияла на производительность `NetworkStream`. Его перегрузка метод `ReadAsync` класса `Stream`:
 ```csharp
-public virtual ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken);
+public virtual ValueTask<int> ReadAsync(
+    Memory<byte> buffer, 
+    CancellationToken cancellationToken);
 ```
 просто делегирует работу метроду `Socket.ReceiveAsync`. Повышение эффективности  метода сокета, в плане работы с памятью, повышиет эффективность и метода `NetworkStream`.
 
