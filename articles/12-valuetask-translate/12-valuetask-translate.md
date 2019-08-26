@@ -1,6 +1,6 @@
 # ValueTask - почему, зачем и как?
 автор: *Stephen Toub*  
-перевод *Андрей Гончаров*  
+перевод: *Андрей Гончаров*  
 [Орегинал статьи](https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/) 
 
 ### *Предисловие к переводу*
