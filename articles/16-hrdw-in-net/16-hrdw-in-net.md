@@ -184,7 +184,7 @@ public unsafe int SumUnrolled(ReadOnlySpan<int> source)
 |SumUnrolled |16384 |4,501.295 ns |6.4186 ns  |6.0040 ns  |
 |SumUnrolled |32768 |8,979.690 ns |19.5265 ns |18.2651 ns |
 
-
+![](https://devblogs.microsoft.com/dotnet/wp-content/uploads/sites/10/2019/09/base-unrolled-1024x808.png)
 ## Повышение производительности за счет векторизации циклов
 
 ## Заключение
