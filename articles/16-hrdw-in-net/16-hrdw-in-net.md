@@ -18,7 +18,48 @@
 
 Некоторые из этих классов также имеют естественную иерархитескую структуру. Напримет, если `Lzcnt.X64.IsSupported` возвращает true, тогда `Lzcnt.IsSupported` также должны вернуть true. Так как это явный подкласс. Или, напрмер, если `Sse2.IsSupported` возвращает true, то и `Sse.IsSupported` должен вернуть true, потому что `Sse2` явным образом наследуется от `Sse`. Однако, стоит отметить, что схожесть имён классов не является показателем  принадлежности их к одной иерархии. Например, `Bmi2` не наследуются от `Bmi1`, поэтому значения возвращаемые `IsSupported` для этих двух наборов интсрукций будут отличаться. Основовополагающим принципом при разработке этих классов было явное представление ISA спецификаций. SSE2 требует поддержки SSE1, поэтому классы, представляющие их, связаны наследованием. В тоже время, BMI2 не требует поддержки BMI1, поэтому мы не использовали наследования. Далее представлен пример описанного выше API.
 
-`ApiShape.cs` вы можете увидеть более полный список в исходном коде по следующим ссылкам *`source.dot.net or dotnet/coreclr on GitHub`*
+```csharp
+namespace System.Runtime.Intrinsics.X86
+{
+    public abstract class Sse
+    {
+        public static bool IsSupported { get; }
+
+        public static Vector128<float> Add(Vector128<float> left, Vector128<float> right);
+
+        // Additional APIs
+
+        public abstract class X64
+        {
+            public static bool IsSupported { get; }
+
+            public static long ConvertToInt64(Vector128<float> value);
+
+            // Additional APIs
+        }
+    }
+
+    public abstract class Sse2 : Sse
+    {
+        public static new bool IsSupported { get; }
+ 
+        public static Vector128<byte> Add(Vector128<byte> left, Vector128<byte> right);
+
+        // Additional APIs
+ 
+        public new abstract class X64 : Sse.X64
+        {
+            public static bool IsSupported { get; }
+
+            public static long ConvertToInt64(Vector128<double> value);
+
+            // Additional APIs
+        }
+    }
+}
+```
+
+ Вы можете увидеть более полный список в исходном коде по следующим ссылкам [source.dot.net or dotnet/coreclr on GitHub](https://github.com/dotnet/coreclr/blob/master/src/System.Private.CoreLib/shared/System/Runtime/Intrinsics/X86/Sse.cs)
 
 
 
