@@ -114,11 +114,11 @@ AMD Ryzen 7 1800X, 1 CPU, 16 logical and 8 physical cores
 |Sum   |256      |106.416 ns    |0.6404 ns   |0.5990 ns  |
 |Sum   |512      |291.450 ns    |3.5148 ns   |3.2878 ns  |
 |Sum   |1024     |574.243 ns    |9.5851 ns   |8.4970 ns  |
-|Sum   |2048     |1,137.819 ns  |5.9363 ns   |5.5529 ns  |
-|Sum   |4096     |2,228.341 ns  |22.8882 ns  |21.4097 ns |
-|Sum   |8192     |2,973.040 ns  |14.2863 ns  |12.6644 ns |
-|Sum   |16384    |5,883.504 ns  |15.9619 ns  |14.9308 ns |
-|Sum   |32768    |11,699.237 ns |104.0970 ns |97.3724 ns |
+|Sum   |2048     |1 137.819 ns  |5.9363 ns   |5.5529 ns  |
+|Sum   |4096     |2 228.341 ns  |22.8882 ns  |21.4097 ns |
+|Sum   |8192     |2 973.040 ns  |14.2863 ns  |12.6644 ns |
+|Sum   |16384    |5 883.504 ns  |15.9619 ns  |14.9308 ns |
+|Sum   |32768    |11 699.237 ns |104.0970 ns |97.3724 ns |
 
 
 ## Повышение производительности за счет развертывания циклов
@@ -179,10 +179,10 @@ public unsafe int SumUnrolled(ReadOnlySpan<int> source)
 |SumUnrolled |512   |146.357 ns   |1.3209 ns  |1.2356 ns  |
 |SumUnrolled |1024  |287.354 ns   |0.9223 ns  |0.8627 ns  |
 |SumUnrolled |2048  |566.405 ns   |4.0155 ns  |3.5596 ns  |
-|SumUnrolled |4096  |1,131.016 ns |7.3601 ns  |6.5246 ns  |
-|SumUnrolled |8192  |2,259.836 ns |8.6539 ns  |8.0949 ns  |
-|SumUnrolled |16384 |4,501.295 ns |6.4186 ns  |6.0040 ns  |
-|SumUnrolled |32768 |8,979.690 ns |19.5265 ns |18.2651 ns |
+|SumUnrolled |4096  |1 131.016 ns |7.3601 ns  |6.5246 ns  |
+|SumUnrolled |8192  |2 259.836 ns |8.6539 ns  |8.0949 ns  |
+|SumUnrolled |16384 |4 501.295 ns |6.4186 ns  |6.0040 ns  |
+|SumUnrolled |32768 |8 979.690 ns |19.5265 ns |18.2651 ns |
 
 ![](https://devblogs.microsoft.com/dotnet/wp-content/uploads/sites/10/2019/09/base-unrolled-1024x808.png)
 ## Повышение производительности за счет векторизации циклов
@@ -243,9 +243,9 @@ public int SumVectorT(ReadOnlySpan<int> source)
 |SumVectorT |1024  |172.129 ns   |1.8673 ns      |1.7467 ns|
 |SumVectorT |2048  |429.722 ns   |1.0461 ns      |0.9786 ns|
 |SumVectorT |4096  |654.209 ns   |3.6215 ns      |3.0241 ns|
-|SumVectorT |8192  |1,675.046 ns |14.5231 ns     |13.5849 ns|
-|SumVectorT |16384 |2,514.778 ns |5.3369 ns      |4.9921 ns|
-|SumVectorT |32768 |6,689.829 ns |13.9947 ns     |13.0906 ns|
+|SumVectorT |8192  |1 675.046 ns |14.5231 ns     |13.5849 ns|
+|SumVectorT |16384 |2 514.778 ns |5.3369 ns      |4.9921 ns|
+|SumVectorT |32768 |6 689.829 ns |13.9947 ns     |13.0906 ns|
 
 ![](https://devblogs.microsoft.com/dotnet/wp-content/uploads/sites/10/2019/09/base-unrolled-vectort-1024x808.png)
 *ЗАМЕЧАНИЕ* Для этой стати я принудительно сделал размер `Vector<T>` равным 16 байтам, используя параметр внутренней конфигурации (`COMPlus_SIMD16ByteOnly=1`). Это нормализовала результаты при сравнении `SumVectorT` с `SumVectorizedSse` и позволило сохранить простоту кода последнего. В частности, позволило измбежать написания условного перехода `if (Avx2.IsSupported) { }`. Этот код, почти идентичен коду для `Sse2`, но имеет дело с `Vector256<T>` (32-байтным) и обрабатывает еще больше элементов за одну итерацию цикла.
@@ -327,6 +327,8 @@ public unsafe int SumVectorizedSse2(ReadOnlySpan<int> source)
 |SumVectorized | 8192 | 554.720 ns | 3.5133 ns | 3.2864 ns | 
 |SumVectorized | 16384 | 1 110.730 ns | 3.3043 ns | 3.0909 ns | 
 |SumVectorized | 32768 | 2 200.996 ns | 21.0538 ns | 19.6938 ns | 
+
+![](https://devblogs.microsoft.com/dotnet/wp-content/uploads/sites/10/2019/09/base-unrolled-vectort-vectorized-1024x808.png)
 
 
 ## Заключение
