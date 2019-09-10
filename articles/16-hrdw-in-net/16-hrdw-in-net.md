@@ -229,7 +229,7 @@ public int SumVectorT(ReadOnlySpan<int> source)
 
 
 |Method	    |Count |Mean	     |Error          |StdDev   |
-|-------|:------:|:------:|:------:|------:|
+|-----------|:----:|:-----------:|:-------------:|--------:|
 |SumVectorT |1     |4.517 ns     |0.0752 ns      |0.0703 ns|
 |SumVectorT |2     |4.853 ns     |0.0609 ns      |0.0570 ns|
 |SumVectorT |4     |5.047 ns     |0.0909 ns      |0.0850 ns|
@@ -246,6 +246,88 @@ public int SumVectorT(ReadOnlySpan<int> source)
 |SumVectorT |8192  |1,675.046 ns |14.5231 ns     |13.5849 ns|
 |SumVectorT |16384 |2,514.778 ns |5.3369 ns      |4.9921 ns|
 |SumVectorT |32768 |6,689.829 ns |13.9947 ns     |13.0906 ns|
+
+![](https://devblogs.microsoft.com/dotnet/wp-content/uploads/sites/10/2019/09/base-unrolled-vectort-1024x808.png)
+*ЗАМЕЧАНИЕ* Для этой стати я принудительно сделал размер `Vector<T>` равным 16 байтам, используя параметр внутренней конфигурации (`COMPlus_SIMD16ByteOnly=1`). Это нормализовала результаты при сравнении `SumVectorT` с `SumVectorizedSse` и позволило сохранить простоту кода последнего. В частности, позволило измбежать написания условного перехода `if (Avx2.IsSupported) { }`. Этот код, почти идентичен коду для `Sse2`, но имеет дело с `Vector256<T>` (32-байтным) и обрабатывает еще больше элементов за одну итерацию цикла.
+
+Таким образом, вы бы могли воспользоваться новыми *аппаратными характеристиками* следующим образом:
+```csharp
+public int SumVectorized(ReadOnlySpan<int> source)
+{
+    if (Sse2.IsSupported)
+    {
+        return SumVectorizedSse2(source);
+    }
+    else
+    {
+        return SumVectorT(source);
+    }
+}
+
+public unsafe int SumVectorizedSse2(ReadOnlySpan<int> source)
+{
+    int result;
+            
+    fixed (int* pSource = source)
+    {
+        Vector128<int> vresult = Vector128<int>.Zero;
+            
+        int i = 0;
+        int lastBlockIndex = source.Length - (source.Length % 4);
+            
+        while (i < lastBlockIndex)
+        {
+            vresult = Sse2.Add(vresult, Sse2.LoadVector128(pSource + i));
+            i += 4;
+        }
+            
+        if (Ssse3.IsSupported)
+        {
+            vresult = Ssse3.HorizontalAdd(vresult, vresult);
+            vresult = Ssse3.HorizontalAdd(vresult, vresult);
+        }
+        else
+        {
+            vresult = Sse2.Add(vresult, Sse2.Shuffle(vresult, 0x4E));
+            vresult = Sse2.Add(vresult, Sse2.Shuffle(vresult, 0xB1));
+        }
+        result = vresult.ToScalar();
+            
+        while (i < source.Length)
+        {
+            result += pSource[i];
+            i += 1;
+        }
+    }
+            
+    return result;
+}
+```
+Этот код, поять таки, немного сложнее, но он значительно быстрее для всех, кроме самых маленьких, нагрузок. Для 32 тыс элементов, этот код выполняется на 75% быстрее чем развернутый цикл, и на 81% быстрее чем исходный код примера.
+
+Вы заметили, что мы написали несколько проверок `IsSupported`. Первая проверяет, поддерживает ли текущее аппаратное обеспечение требуемый набор *характеристик*, если нет, то выполняется оптимизация через комбинацию развертки и применения `Vector<T>`. Последний вариант будет выбран для таких платформ как ARM/ARM64, которые не поддерживают требуемого набора инструкий, или же если для платформы этот набор был отключен. Вторая проверка `IsSupported`, в методе `SumVectorizedSse2`, используется для дополнительной оптимизации, если аппаратное обеспечение поддерживает и набор инстркциий `Ssse3`.
+
+В остальном, большая часть логики, по сути, такая же как и для развернутого цикла. `Vector128<T>` - это 128-битный тип, содержащий `Vector128<T>.Count` элементов. В данном случае, `uint`, который сам 32-битный, мы можем иметь 4 (128 / 32) элемента, именно так мы развернули цикл.
+
+|Method | Count | Mean | Error | StdDev |
+|---|:--:|:--:|:--:|--:|
+|SumVectorized | 1 | 4.555 ns | 0.0192 ns | 0.0179 ns | 
+|SumVectorized | 2 | 4.848 ns | 0.0147 ns | 0.0137 ns | 
+|SumVectorized | 4 | 5.381 ns | 0.0210 ns | 0.0186 ns | 
+|SumVectorized | 8 | 4.838 ns | 0.0209 ns | 0.0186 ns | 
+|SumVectorized | 16 | 5.107 ns | 0.0175 ns | 0.0146 ns | 
+|SumVectorized | 32 | 5.646 ns | 0.0230 ns | 0.0204 ns | 
+|SumVectorized | 64 | 6.763 ns | 0.0338 ns | 0.0316 ns | 
+|SumVectorized | 128 | 9.308 ns | 0.1041 ns | 0.0870 ns | 
+|SumVectorized | 256 | 15.634 ns | 0.0927 ns | 0.0821 ns | 
+|SumVectorized | 512 | 34.706 ns | 0.2851 ns | 0.2381 ns | 
+|SumVectorized | 1024 | 68.110 ns | 0.4016 ns | 0.3756 ns | 
+|SumVectorized | 2048 | 136.533 ns | 1.3104 ns | 1.2257 ns | 
+|SumVectorized | 4096 | 277.930 ns | 0.5913 ns | 0.5531 ns | 
+|SumVectorized | 8192 | 554.720 ns | 3.5133 ns | 3.2864 ns | 
+|SumVectorized | 16384 | 1 110.730 ns | 3.3043 ns | 3.0909 ns | 
+|SumVectorized | 32768 | 2 200.996 ns | 21.0538 ns | 19.6938 ns | 
+
 
 ## Заключение
 
